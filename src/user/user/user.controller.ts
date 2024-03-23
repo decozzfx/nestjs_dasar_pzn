@@ -12,6 +12,10 @@ import {
   Req,
   Inject,
   Body,
+  HttpException,
+  ParseIntPipe,
+  UsePipes,
+  UseInterceptors,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { UserService } from './user.service';
@@ -20,6 +24,14 @@ import { MailService } from '../mail/mail.service';
 import { UserRepository } from '../user-repository/user-repository';
 import { MemberService } from '../member/member.service';
 import { User } from '@prisma/client';
+import {
+  LoginUserRequest,
+  loginUserRequestValidation,
+} from '../model/login.model';
+import { ValidationPipe } from 'src/validation/validation.pipe';
+import { TimeInterceptor } from 'src/time/time.interceptor';
+import { Auth } from 'src/auth/auth.decorator';
+import { Roles } from 'src/role/roles.decorator';
 
 @Controller('/api/users')
 export class UserController {
@@ -31,6 +43,25 @@ export class UserController {
     @Inject('EMailService') private EmailService: MailService,
     private memberService: MemberService,
   ) {}
+
+  @Get('/current')
+  @Roles(['admin'])
+  @UseInterceptors(TimeInterceptor)
+  current(@Auth() user: User): Record<string, any> {
+    return {
+      data: `Hello ${user.first_name} ${user.last_name}`,
+    };
+  }
+
+  @UsePipes(new ValidationPipe(loginUserRequestValidation))
+  @Post('/login')
+  @Header('Content-Type', 'application/json')
+  @UseInterceptors(TimeInterceptor)
+  login(@Query('name') name: string, @Body() request: LoginUserRequest) {
+    return {
+      data: `Hello ${request.username}`,
+    };
+  }
 
   @Get('/connection')
   async getConnection(): Promise<string> {
@@ -44,6 +75,7 @@ export class UserController {
   }
 
   @Get('/hello')
+  // @UseFilters(ValidationFilter)
   async sayHello(@Query('name') name: string): Promise<string> {
     return this.service.sayHello(name);
   }
@@ -88,7 +120,7 @@ export class UserController {
   }
 
   @Get('/:id')
-  getById(@Param('id') id: string): string {
+  getById(@Param('id', ParseIntPipe) id: number): string {
     return `GET User ${id}`;
   }
 
@@ -105,6 +137,15 @@ export class UserController {
     @Body() body: { firstName: string; lastName: string },
   ): Promise<User> {
     const { firstName, lastName } = body;
+    if (!firstName) {
+      throw new HttpException(
+        {
+          code: 400,
+          errors: 'fistName is required',
+        },
+        400,
+      );
+    }
     return this.userRepository.save(firstName, lastName);
   }
 }

@@ -6,7 +6,7 @@ import { z } from 'zod';
 export class UserService {
   constructor(private validationService: ValidationService) {}
   sayHello(name: string) {
-    const schema = z.string().min(3).max(100);
+    const schema = z.string().min(3).max(10);
     const result = this.validationService.validate(schema, name);
     return `Hello ${result}!`;
   }
